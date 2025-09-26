@@ -4,7 +4,7 @@ from opensearchpy import OpenSearch, RequestsHttpConnection
 
 region = "us-east-2"  
 service = "es"
-INDEX_NAME = "documents"
+INDEX_NAME = "ai-assistant-docs"
 
 # Get credentials from EC2 instance role
 session = boto3.Session()
