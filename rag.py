@@ -7,7 +7,10 @@ bedrock = boto3.client("bedrock-runtime", region_name="us-east-2")
 def rag_answer(query):
     # Step 2: Retrieve from OpenSearch
     results = search_index(query, top_k=2)
-    context = "\n".join(results)
+
+    # Extract content (make sure they're strings)
+    docs = [doc.get("content", "") for doc in results]
+    context = "\n\n".join(docs)
 
     # Step 3: Build Bedrock prompt
     prompt = f"""
@@ -23,12 +26,10 @@ def rag_answer(query):
 
     # Step 4: Call Bedrock model (Claude example)
     response = bedrock.invoke_model(
-        modelId="anthropic.claude-v2",  # we can change this later
-        body={
-            "prompt": prompt,
-            "max_tokens_to_sample": 300,
-            "temperature": 0.2
-        },
+        modelId="anthropic.claude-v2",  # can switch to Titan/Llama later
+        body=(
+            '{"prompt": ' + f'"{prompt}"' + ', "max_tokens_to_sample": 300, "temperature": 0.2}'
+        ),
         contentType="application/json",
         accept="application/json"
     )
@@ -37,4 +38,4 @@ def rag_answer(query):
     print(output)
 
 if __name__ == "__main__":
-    rag_answer("What services do you provide?")
+    rag_answer("What services does AI Solutions Agency provide?")
