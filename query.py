@@ -15,7 +15,7 @@ for r in results:
     print(f"{title} → {snippet} ...")
 
  """
-
+import json
 import boto3
 from utils.opensearch import client, INDEX_NAME
 
