@@ -9,14 +9,14 @@ embedding_model_id = "amazon.titan-embed-text-v2:0"
 
 # ===== Auth =====
 session = boto3.Session()
-credentials = session.get_credentials().get_frozen_credentials()
+credentials = session.get_credentials()
 
 aws_auth = AWS4Auth(
     credentials.access_key,
     credentials.secret_key,
-    credentials.token,
     region,
-    service
+    service,
+    session_token=credentials.token
 )
 
 OPENSEARCH_ENDPOINT = "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com"
