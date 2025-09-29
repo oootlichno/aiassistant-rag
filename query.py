@@ -1,20 +1,3 @@
-""" from utils.opensearch import search_index
-
-results = search_index("AI assistant")
-
-print(f"Found results: {len(results)}")
-
-for r in results:
-    # Extract the source document
-    source = r["_source"]
-    title = source.get("title", "Untitled")
-    content = source.get("content", "")
-
-    # Print first 200 characters of content
-    snippet = content[:200].replace("\n", " ")
-    print(f"{title} → {snippet} ...")
-
- """
 import json
 import boto3
 from utils.opensearch import client, INDEX_NAME
@@ -27,11 +10,11 @@ def get_embedding(text: str):
     """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body=json.dumps({"inputText": text}),   # ✅ JSON string
-        contentType="application/json",        # ✅ tell Bedrock it's JSON
+        body=json.dumps({"inputText": text}),   
+        contentType="application/json",       
         accept="application/json"
     )
-    result = json.loads(response["body"].read())  # ✅ parse Bedrock response
+    result = json.loads(response["body"].read())  
     return result["embedding"]
 
 def search_index(query, top_k=3):
