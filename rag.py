@@ -31,7 +31,7 @@ from utils.opensearch import search_index
 
 # ===== Settings =====
 region = "us-east-2"
-model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"  # ✅ pick your active Claude model
+model_id = "arn:aws:bedrock:us-east-2:338220915419:inference-profile/us.anthropic.claude-3-haiku-20240307-v1:0"
 
 # ===== Bedrock client =====
 bedrock = boto3.client("bedrock-runtime", region_name=region)
