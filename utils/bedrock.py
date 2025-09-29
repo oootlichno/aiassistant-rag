@@ -1,18 +1,24 @@
 import boto3
+import json
 
-region = "us-east-2"
+bedrock = boto3.client("bedrock-runtime", region_name="us-east-2")
 
-def get_bedrock_client():
-    return boto3.client("bedrock-runtime", region_name=region)
+CLAUDE_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
 
-def generate_with_bedrock(prompt, model="anthropic.claude-v2:1"):
-    bedrock = get_bedrock_client()
+def ask_bedrock(prompt: str) -> str:
+    body = {
+        "messages": [
+            {"role": "user", "content": [{"type": "text", "text": prompt}]}
+        ],
+        "max_tokens": 500,
+    }
+
     response = bedrock.invoke_model(
-        modelId=model,
-        body={
-            "prompt": prompt,
-            "max_tokens_to_sample": 500,
-            "temperature": 0.3
-        }
+        modelId=CLAUDE_MODEL_ID,
+        contentType="application/json",
+        accept="application/json",
+        body=json.dumps(body),
     )
-    return response["body"].read().decode("utf-8")
+    output = json.loads(response["body"].read())
+    return output["output"]["content"][0]["text"]
+
