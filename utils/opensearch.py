@@ -2,20 +2,21 @@ import boto3
 from requests_aws4auth import AWS4Auth
 from opensearchpy import OpenSearch, RequestsHttpConnection
 
-region = "us-east-2"  
+region = "us-east-2"
 service = "es"
 INDEX_NAME = "ai-assistant-docs"
+embedding_model_id = "amazon.titan-embed-text-v2:0"
 
-# Get credentials from EC2 instance role
+# ===== Auth =====
 session = boto3.Session()
 credentials = session.get_credentials().get_frozen_credentials()
 
 aws_auth = AWS4Auth(
     credentials.access_key,
     credentials.secret_key,
+    credentials.token,
     region,
-    service,
-    session_token=credentials.token
+    service
 )
 
 OPENSEARCH_ENDPOINT = "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com"
@@ -28,15 +29,30 @@ client = OpenSearch(
     connection_class=RequestsHttpConnection
 )
 
+# ===== Bedrock for embeddings =====
+bedrock = boto3.client("bedrock-runtime", region_name=region)
 
-def search_index(query, top_k=3):
+def get_embedding(text: str):
+    """Generate Titan embeddings for text"""
+    response = bedrock.invoke_model(
+        modelId=embedding_model_id,
+        body={"inputText": text}
+    )
+    return response["embedding"]
+
+def search_index(query: str, top_k: int = 3):
+    """Vector search in OpenSearch"""
+    vector = get_embedding(query)
     body = {
+        "size": top_k,
         "query": {
-            "multi_match": {
-                "query": query,
-                "fields": ["title", "content"]
+            "knn": {
+                "embedding": {
+                    "vector": vector,
+                    "k": top_k
+                }
             }
         }
     }
-    res = client.search(index=INDEX_NAME, body=body, size=top_k)
-    return res["hits"]["hits"]
+    res = client.search(index=INDEX_NAME, body=body)
+    return [hit["_source"] for hit in res["hits"]["hits"]]

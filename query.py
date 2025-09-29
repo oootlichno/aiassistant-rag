@@ -16,41 +16,40 @@ for r in results:
 
  """
 
-import json
 import boto3
 from utils.opensearch import client, INDEX_NAME
 
 region = "us-east-2"
+embedding_model_id = "amazon.titan-embed-text-v2:0"
 bedrock = boto3.client("bedrock-runtime", region_name=region)
-EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
 
-def embed_text(text):
-    body = json.dumps({"inputText": text})
-    resp = bedrock.invoke_model(
-        modelId=EMBEDDING_MODEL,
-        contentType="application/json",
-        accept="application/json",
-        body=body,
+def get_embedding(text):
+    response = bedrock.invoke_model(
+        modelId=embedding_model_id,
+        body={"inputText": text}
     )
-    return json.loads(resp["body"].read())["embedding"]
+    return response["embedding"]
 
 def search_index(query, top_k=3):
-    query_vector = embed_text(query)
+    vector = get_embedding(query)
     body = {
         "size": top_k,
         "query": {
             "knn": {
                 "embedding": {
-                    "vector": query_vector,
+                    "vector": vector,
                     "k": top_k
                 }
             }
         }
     }
     res = client.search(index=INDEX_NAME, body=body)
-    return res["hits"]["hits"]
+    return [
+        (hit["_source"]["title"], hit["_source"]["content"])
+        for hit in res["hits"]["hits"]
+    ]
 
 if __name__ == "__main__":
     results = search_index("What services do you provide?")
-    for r in results:
-        print(r["_source"]["title"], "→", r["_source"]["content"][:200], "...")
+    for title, content in results:
+        print(f"{title} → {content[:200]}...")

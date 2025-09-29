@@ -66,21 +66,20 @@ for file, title in docs:
 
 
 import os
-import json
 import boto3
-from pypdf import PdfReader
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
+from pypdf import PdfReader
 
+# ===== Settings =====
+INDEX_NAME = "ai-assistant-docs"
 region = "us-east-2"
 service = "es"
-INDEX_NAME = "ai-assistant-docs"
-EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
+embedding_model_id = "amazon.titan-embed-text-v2:0"
 
-# --- Bedrock + OpenSearch clients ---
+# ===== Auth =====
 session = boto3.Session()
 credentials = session.get_credentials().get_frozen_credentials()
-
 aws_auth = AWS4Auth(
     credentials.access_key,
     credentials.secret_key,
@@ -89,61 +88,65 @@ aws_auth = AWS4Auth(
     service
 )
 
+# ===== OpenSearch client =====
+OPENSEARCH_ENDPOINT = "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com"
 opensearch = OpenSearch(
-    hosts=[{
-        "host": "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com",
-        "port": 443
-    }],
+    hosts=[{"host": OPENSEARCH_ENDPOINT, "port": 443}],
     http_auth=aws_auth,
     use_ssl=True,
     verify_certs=True,
     connection_class=RequestsHttpConnection
 )
 
+# ===== Bedrock client =====
 bedrock = boto3.client("bedrock-runtime", region_name=region)
 
-# --- Ensure index with vector mapping ---
+def get_embedding(text):
+    """Generate Titan embedding from text"""
+    response = bedrock.invoke_model(
+        modelId=embedding_model_id,
+        body={"inputText": text}
+    )
+    return response["embedding"]
+
+# ===== PDF loader =====
+def pdf_to_chunks(filepath, chunk_size=300):
+    reader = PdfReader(filepath)
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    words = text.split()
+    for i in range(0, len(words), chunk_size):
+        yield " ".join(words[i:i+chunk_size])
+
+# ===== Ensure index exists with knn_vector =====
 if not opensearch.indices.exists(index=INDEX_NAME):
-    index_body = {
-        "settings": {"index": {"knn": True}},
-        "mappings": {
-            "properties": {
-                "title": {"type": "text"},
-                "content": {"type": "text"},
-                "embedding": {"type": "knn_vector", "dimension": 1024}
+    opensearch.indices.create(
+        index=INDEX_NAME,
+        body={
+            "settings": {"index": {"knn": True}},
+            "mappings": {
+                "properties": {
+                    "title": {"type": "text"},
+                    "content": {"type": "text"},
+                    "embedding": {"type": "knn_vector", "dimension": 1024}  # Titan v2 outputs 1024-dim
+                }
             }
         }
-    }
-    opensearch.indices.create(index=INDEX_NAME, body=index_body)
-
-# --- Helpers ---
-def pdf_to_text(filepath):
-    reader = PdfReader(filepath)
-    return "\n".join(page.extract_text() or "" for page in reader.pages)
-
-def embed_text(text):
-    body = json.dumps({"inputText": text})
-    resp = bedrock.invoke_model(
-        modelId=EMBEDDING_MODEL,
-        contentType="application/json",
-        accept="application/json",
-        body=body,
     )
-    return json.loads(resp["body"].read())["embedding"]
 
-# --- Documents to ingest ---
+# ===== Ingest PDFs =====
 docs = [
     ("AI Solutions Agency.pdf", "AI Solutions Agency"),
     ("Frequently Asked Questions.pdf", "FAQ"),
 ]
 
-# --- Ingest PDFs ---
 for file, title in docs:
     if os.path.exists(file):
-        text = pdf_to_text(file)
-        embedding = embed_text(text[:2000])  # limit size for demo
-        doc = {"title": title, "content": text, "embedding": embedding}
-        opensearch.index(index=INDEX_NAME, body=doc)
-        print(f"Indexed with embeddings: {file}")
+        for chunk in pdf_to_chunks(file):
+            emb = get_embedding(chunk)
+            opensearch.index(
+                index=INDEX_NAME,
+                body={"title": title, "content": chunk, "embedding": emb}
+            )
+        print(f"Indexed: {file}")
     else:
         print(f"File not found: {file}")
