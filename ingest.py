@@ -106,9 +106,9 @@ def get_embedding(text: str):
     """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body=json.dumps({"inputText": text})
+        body=json.dumps({"inputText": text})  # <-- FIX: JSON string, not dict
     )
-    result = json.loads(response["body"].read())
+    result = json.loads(response["body"].read())  # parse Bedrock response
     return result["embedding"]
 
 # ===== PDF loader =====
