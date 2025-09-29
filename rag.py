@@ -1,4 +1,4 @@
-import boto3
+""" import boto3
 from utils.opensearch import search_index
 
 # Step 1: Connect to Bedrock
@@ -14,14 +14,14 @@ def rag_answer(query):
 
     # Step 3: Build Bedrock prompt
     prompt = f"""
-    You are an AI assistant for our AI Solutions Agency.
+"""     You are an AI assistant for our AI Solutions Agency.
     Use the context below to answer the user’s question.
 
     Context:
     {context}
 
     Question: {query}
-    Answer:
+    Answer: """
     """
 
     # Step 4: Call Bedrock model (Claude example)
@@ -36,6 +36,31 @@ def rag_answer(query):
 
     output = response["body"].read().decode("utf-8")
     print(output)
+
+if __name__ == "__main__":
+    rag_answer("What services does AI Solutions Agency provide?")
+
+ """
+
+from utils.opensearch import search_index
+from utils.bedrock import ask_bedrock
+
+def rag_answer(query: str):
+    docs = search_index(query, top_k=3)
+    context = "\n\n".join([d["_source"]["content"] for d in docs])
+    prompt = f"""You are a helpful assistant. 
+    Answer the question based only on the context below.
+
+    Context:
+    {context}
+
+    Question: {query}
+    """
+
+    answer = ask_bedrock(prompt)
+    print("Q:", query)
+    print("A:", answer)
+
 
 if __name__ == "__main__":
     rag_answer("What services does AI Solutions Agency provide?")
