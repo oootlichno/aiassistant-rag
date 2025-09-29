@@ -1,30 +1,3 @@
-""" from utils.opensearch import search_index
-from utils.bedrock import ask_bedrock
-
-def rag_answer(query: str):
-    # Retrieve top chunks
-    docs = search_index(query, top_k=3)
-    context = "\n\n".join([doc["content"] for doc in docs])
-
-    # Build prompt
-    prompt = f"""""" You are a helpful assistant. 
-Answer the question based only on the context below.
-
-Context:
-{context}
-
-Question: {query} """
-"""
-
-    # Ask LLM
-    answer = ask_bedrock(prompt)
-    print("Q:", query)
-    print("A:", answer)
-
-if __name__ == "__main__":
-    rag_answer("What services does AI Solutions Agency provide?") """
-
-
 import json
 import boto3
 from utils.opensearch import search_index
@@ -52,10 +25,11 @@ Context:
 Question: {query}
 """
 
-    # 3. Send to Bedrock Claude
+    # 3. Send to Bedrock Claude (Anthropic)
     response = bedrock.invoke_model(
         modelId=model_id,
         body=json.dumps({
+            "anthropic_version": "bedrock-2023-05-31",  # ✅ REQUIRED
             "messages": [
                 {"role": "user", "content": prompt}
             ],
@@ -66,7 +40,7 @@ Question: {query}
 
     # 4. Parse response
     result = json.loads(response["body"].read())
-    answer = result["output"]["message"]["content"][0]["text"]
+    answer = result["content"][0]["text"]   # ✅ correct field
 
     print("Q:", query)
     print("A:", answer)
