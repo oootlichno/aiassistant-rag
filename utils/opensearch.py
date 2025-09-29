@@ -1,3 +1,4 @@
+import json
 import boto3
 from requests_aws4auth import AWS4Auth
 from opensearchpy import OpenSearch, RequestsHttpConnection
@@ -10,7 +11,6 @@ embedding_model_id = "amazon.titan-embed-text-v2:0"
 # ===== Auth =====
 session = boto3.Session()
 credentials = session.get_credentials()
-
 aws_auth = AWS4Auth(
     credentials.access_key,
     credentials.secret_key,
@@ -19,8 +19,8 @@ aws_auth = AWS4Auth(
     session_token=credentials.token
 )
 
+# ===== OpenSearch client =====
 OPENSEARCH_ENDPOINT = "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com"
-
 client = OpenSearch(
     hosts=[{"host": OPENSEARCH_ENDPOINT, "port": 443}],
     http_auth=aws_auth,
@@ -29,16 +29,17 @@ client = OpenSearch(
     connection_class=RequestsHttpConnection
 )
 
-# ===== Bedrock for embeddings =====
+# ===== Bedrock client =====
 bedrock = boto3.client("bedrock-runtime", region_name=region)
 
 def get_embedding(text: str):
     """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body={"inputText": text}
+        body=json.dumps({"inputText": text})
     )
-    return response["embedding"]
+    result = json.loads(response["body"].read())
+    return result["embedding"]
 
 def search_index(query: str, top_k: int = 3):
     """Vector search in OpenSearch"""

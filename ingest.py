@@ -66,6 +66,7 @@ for file, title in docs:
 
 
 import os
+import json
 import boto3
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
@@ -79,18 +80,18 @@ embedding_model_id = "amazon.titan-embed-text-v2:0"
 
 # ===== Auth =====
 session = boto3.Session()
-credentials = session.get_credentials().get_frozen_credentials()
+credentials = session.get_credentials()
 aws_auth = AWS4Auth(
     credentials.access_key,
     credentials.secret_key,
-    credentials.token,
     region,
-    service
+    service,
+    session_token=credentials.token
 )
 
 # ===== OpenSearch client =====
 OPENSEARCH_ENDPOINT = "search-aiassistant-vectors-dev-d4jiukbmp2erksrnnwtcwvdlcm.us-east-2.es.amazonaws.com"
-opensearch = OpenSearch(
+client = OpenSearch(
     hosts=[{"host": OPENSEARCH_ENDPOINT, "port": 443}],
     http_auth=aws_auth,
     use_ssl=True,
@@ -101,13 +102,14 @@ opensearch = OpenSearch(
 # ===== Bedrock client =====
 bedrock = boto3.client("bedrock-runtime", region_name=region)
 
-def get_embedding(text):
-    """Generate Titan embedding from text"""
+def get_embedding(text: str):
+    """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body={"inputText": text}
+        body=json.dumps({"inputText": text})
     )
-    return response["embedding"]
+    result = json.loads(response["body"].read())
+    return result["embedding"]
 
 # ===== PDF loader =====
 def pdf_to_chunks(filepath, chunk_size=300):
@@ -118,20 +120,22 @@ def pdf_to_chunks(filepath, chunk_size=300):
         yield " ".join(words[i:i+chunk_size])
 
 # ===== Ensure index exists with knn_vector =====
-if not opensearch.indices.exists(index=INDEX_NAME):
-    opensearch.indices.create(
-        index=INDEX_NAME,
-        body={
-            "settings": {"index": {"knn": True}},
-            "mappings": {
-                "properties": {
-                    "title": {"type": "text"},
-                    "content": {"type": "text"},
-                    "embedding": {"type": "knn_vector", "dimension": 1024}  # Titan v2 outputs 1024-dim
-                }
+if client.indices.exists(index=INDEX_NAME):
+    client.indices.delete(index=INDEX_NAME)  # start fresh
+
+client.indices.create(
+    index=INDEX_NAME,
+    body={
+        "settings": {"index": {"knn": True}},
+        "mappings": {
+            "properties": {
+                "title": {"type": "text"},
+                "content": {"type": "text"},
+                "embedding": {"type": "knn_vector", "dimension": 1024}
             }
         }
-    )
+    }
+)
 
 # ===== Ingest PDFs =====
 docs = [
@@ -143,7 +147,7 @@ for file, title in docs:
     if os.path.exists(file):
         for chunk in pdf_to_chunks(file):
             emb = get_embedding(chunk)
-            opensearch.index(
+            client.index(
                 index=INDEX_NAME,
                 body={"title": title, "content": chunk, "embedding": emb}
             )
