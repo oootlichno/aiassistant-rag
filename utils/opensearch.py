@@ -36,9 +36,11 @@ def get_embedding(text: str):
     """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body=json.dumps({"inputText": text})  # <-- FIX: JSON string, not dict
+        body=json.dumps({"inputText": text}),   # ✅ JSON string
+        contentType="application/json",        # ✅ tell Bedrock it's JSON
+        accept="application/json"
     )
-    result = json.loads(response["body"].read())  # parse Bedrock response
+    result = json.loads(response["body"].read())  # ✅ parse Bedrock response
     return result["embedding"]
 
 def search_index(query: str, top_k: int = 3):

@@ -23,12 +23,16 @@ region = "us-east-2"
 embedding_model_id = "amazon.titan-embed-text-v2:0"
 bedrock = boto3.client("bedrock-runtime", region_name=region)
 
-def get_embedding(text):
+def get_embedding(text: str):
+    """Generate Titan embeddings for text"""
     response = bedrock.invoke_model(
         modelId=embedding_model_id,
-        body={"inputText": text}
+        body=json.dumps({"inputText": text}),   # ✅ JSON string
+        contentType="application/json",        # ✅ tell Bedrock it's JSON
+        accept="application/json"
     )
-    return response["embedding"]
+    result = json.loads(response["body"].read())  # ✅ parse Bedrock response
+    return result["embedding"]
 
 def search_index(query, top_k=3):
     vector = get_embedding(query)
